@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APP 首頁 BN 進稿排程台</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --espresso:#123B2E; --leaf:#1E7A55; --leaf2:#2E9E6B; --cream:#F6F4EE; --paper:#FFFFFF;
+  --ink:#21261F; --muted:#6B7268; --line:#E4E0D5; --line2:#EFEBE1;
+  --t-social:#C6584A; --t-social-bg:#F7E4E1;
+  --t-member:#1E7A55; --t-member-bg:#DCEEE4;
+  --t-new:#B8862E;   --t-new-bg:#F6EAD1;
+  --t-cat:#41729B;   --t-cat-bg:#E1EAF2;
+  --admin-ink:#8C8879; --admin-bg:#F4F3EE; --admin-line:#D2CFC3;
+  --warn:#B23A2E; --shadow:0 1px 2px rgba(18,59,46,.06),0 8px 24px rgba(18,59,46,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Noto Sans TC",sans-serif;
+  background:var(--cream);color:var(--ink);line-height:1.5;font-size:14px}
+.num{font-variant-numeric:tabular-nums}
+h1,h2,h3{margin:0}
+button{font-family:inherit;cursor:pointer}
+input,select,textarea{font-family:inherit;font-size:14px}
+.hidden{display:none!important}
+
+/* ---------- shared header/notice/button styles ---------- */
+header{background:var(--espresso);color:#EAF3EE;padding:16px 22px;display:flex;align-items:center;
+  justify-content:space-between;gap:16px;flex-wrap:wrap;position:sticky;top:0;z-index:20;box-shadow:var(--shadow)}
+.brand{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.brand h1{font-size:19px;font-weight:800;letter-spacing:.06em}
+.brand .sub{font-size:12px;color:#9EC2B1;letter-spacing:.04em}
+.hdr-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.rulechip{font-size:11.5px;color:#BFD8CC;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.14);padding:4px 10px;border-radius:999px}
+.btn{border:1px solid var(--line);background:var(--paper);color:var(--ink);padding:8px 14px;
+  border-radius:8px;font-weight:600;font-size:13px;transition:.15s}
+.btn:hover{border-color:var(--leaf);color:var(--leaf)}
+.btn.ghost-d{background:transparent;color:#EAF3EE;border-color:rgba(255,255,255,.28)}
+.btn.ghost-d:hover{background:rgba(255,255,255,.1);color:#fff;border-color:#fff}
+.btn.primary{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.btn.primary:hover{background:var(--leaf2);border-color:var(--leaf2);color:#fff}
+.btn.warn{color:var(--warn);border-color:#E7C9C4}
+.btn.warn:hover{background:#FBEDEA;border-color:var(--warn)}
+.btn.small{padding:5px 10px;font-size:12px}
+
+.notice{background:#FBF3DC;color:#6E5514;border-bottom:1px solid #E7D5A0;
+  padding:9px 22px;font-size:12.5px;font-weight:600;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.notice .dot{color:#B8862E}
+
+/* ---------- passcode gate (admin only) ---------- */
+#gate{position:fixed;inset:0;z-index:100;background:var(--espresso);
+  display:flex;align-items:center;justify-content:center;padding:20px}
+.gate-box{background:var(--paper);border-radius:16px;padding:34px 30px;max-width:340px;width:100%;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center}
+.gate-eyebrow{font-size:11px;font-weight:800;letter-spacing:.16em;color:var(--leaf);text-transform:uppercase;margin-bottom:8px}
+.gate-box h2{font-size:18px;font-weight:800;color:var(--espresso);margin-bottom:8px}
+.gate-box p{font-size:12.5px;color:var(--muted);margin:0 0 16px}
+.gate-box input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
+  background:#FCFBF7;text-align:center;font-size:14px;letter-spacing:.06em;margin-bottom:10px}
+.gate-box input:focus{outline:2px solid var(--leaf2);outline-offset:0;border-color:var(--leaf2)}
+.gate-box .btn{width:100%;padding:10px}
+.gate-err{color:var(--warn);font-size:12px;min-height:16px;margin-top:8px}
+.gate-hint{font-size:11px;color:#9A968A;margin-top:14px}
+.gate-back{display:inline-block;margin-top:10px;font-size:11.5px;color:#9EC2B1}
+
+/* ---------- layout scaffolding ---------- */
+.wrap{max-width:1320px;margin:22px auto;padding:0 22px}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--line2);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card-h h2{font-size:15px;font-weight:800;letter-spacing:.02em}
+.card-h .eyebrow{font-size:11px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+.card-b{padding:18px}
+footer{max-width:1320px;margin:8px auto 40px;padding:0 22px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.footlink{color:#B9B5A6;font-size:11.5px}
+.footlink a{color:#8A8776;text-decoration:none;border-bottom:1px dotted #C9C6B8}
+.footlink a:hover{color:var(--leaf)}
+
+/* ---------- applicant form ---------- */
+.apply-wrap{max-width:640px;margin:26px auto;padding:0 22px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;grid-auto-flow:dense}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1 / -1}
+.field label{font-size:12px;font-weight:700;color:#3B4238;display:flex;align-items:center;flex-wrap:wrap}
+.field label .fno{display:inline-flex;justify-content:center;min-width:17px;height:17px;line-height:17px;
+  background:#D3EBDD;color:#1C6A48;border-radius:5px;font-size:10.5px;font-weight:800;margin-right:6px;font-variant-numeric:tabular-nums}
+.field label .req{color:var(--warn);margin-left:3px}
+.field .help{font-size:11px;color:var(--muted);font-weight:500;margin-top:1px}
+.field input,.field select,.field textarea{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:#FCFBF7;color:var(--ink);width:100%}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--leaf2);outline-offset:0;border-color:var(--leaf2);background:#fff}
+.field textarea{resize:vertical;min-height:56px}
+.field.app{border-left:3px solid var(--leaf2);padding-left:11px}
+.two{display:grid;grid-template-columns:1fr 108px;gap:8px}
+.imgq{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.imgq .chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;white-space:nowrap}
+.imgq input[type=text]{flex:1;min-width:160px}
+.err{color:var(--warn);font-size:11.5px;min-height:0}
+.form-foot{display:flex;gap:10px;align-items:center;margin-top:16px}
+.form-msg{font-size:12.5px;color:var(--leaf);font-weight:600}
+.myq-wrap{margin-top:20px}
+.myq-item{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
+  padding:10px 12px;border:1px solid var(--line2);border-radius:9px;background:#FCFBF7;margin-bottom:8px}
+.myq-item .m1{font-weight:700;font-size:13px;color:var(--espresso)}
+.myq-item .m2{font-size:11.5px;color:var(--muted);margin-top:2px}
+.myq-empty{color:var(--muted);font-size:12.5px;padding:10px 2px}
+.submit-band{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+.submit-hint{font-size:11.5px;color:var(--muted)}
+
+/* ---------- admin view ---------- */
+.admin-main{max-width:1320px;margin:22px auto;padding:0 22px;display:grid;
+  grid-template-columns:minmax(300px,340px) minmax(0,1fr);gap:22px;align-items:start}
+.admin-main>*{min-width:0}
+.config{background:#0E3125;color:#CFE3D9;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.config .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.config label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:#9EC2B1}
+.config input{width:100%;padding:7px 9px;border-radius:7px;border:1px solid rgba(255,255,255,.2);background:#164235;color:#fff}
+.config .hint{font-size:11px;color:#7FA593}
+
+.railwrap{display:flex;flex-direction:column;gap:14px}
+.dateline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:2px}
+.dateline input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#FFFCF4;font-weight:700}
+.dateline .lbl{font-size:12px;font-weight:800;color:var(--espresso);letter-spacing:.08em}
+.dateline .live{font-size:11.5px;color:var(--muted)}
+.rail{border:1px solid var(--line2);border-radius:12px;overflow:hidden}
+.rail-h{display:flex;align-items:center;justify-content:space-between;background:var(--espresso);color:#EAF3EE;padding:8px 12px;font-size:12.5px;font-weight:700;letter-spacing:.03em}
+.rail-h .cap{color:#9EC2B1;font-weight:600;font-size:11.5px}
+.slots{display:grid;grid-template-columns:repeat(8,1fr);gap:0;overflow-x:auto}
+.slots.one{grid-template-columns:1fr}
+.slot{border-right:1px solid var(--line2);min-height:88px;min-width:88px;padding:7px 7px 8px;background:#FCFBF7}
+.slot:last-child{border-right:none}
+.slot .bn{font-size:10px;font-weight:800;color:var(--muted);letter-spacing:.08em}
+.slot.filled{background:#fff}
+.slot .chip{margin-top:4px;font-size:11px;line-height:1.35;border-radius:7px;padding:6px 7px;border:1px solid transparent}
+.slot .chip .nm{font-weight:700;display:block;margin-bottom:3px}
+.slot .chip .mt{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+.slot .chip .sysno{font-weight:800}
+.chip.social{background:var(--t-social-bg);border-color:#EBC7C1;color:#7A2A22}
+.chip.member{background:var(--t-member-bg);border-color:#BFDFCD;color:#134A34}
+.chip.newp{background:var(--t-new-bg);border-color:#E6D2A6;color:#6E5214}
+.chip.cat{background:var(--t-cat-bg);border-color:#C7D6E5;color:#274763}
+.slot.empty .dash{color:#C9C6BB;font-size:12px;margin-top:22px;text-align:center}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--muted);margin-top:2px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tbl-wrap{overflow:auto;max-height:480px;border-top:1px solid var(--line2)}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line2);text-align:left;vertical-align:middle}
+th{position:sticky;top:0;background:#F3F0E8;color:#4A5147;font-weight:700;font-size:11.2px;z-index:2;white-space:nowrap}
+tr:hover td{background:#FBFAF5}
+td.center,th.center{text-align:center}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+.tag.social{background:var(--t-social-bg);color:#7A2A22}
+.tag.member{background:var(--t-member-bg);color:#134A34}
+.tag.newp{background:var(--t-new-bg);color:#6E5214}
+.tag.cat{background:var(--t-cat-bg);color:#274763}
+.tag.full{background:#E9E3F1;color:#4B3A6B}
+.tag.none{background:#EDEBE3;color:#8A8B7F}
+.sysbig{font-weight:800;font-variant-numeric:tabular-nums;color:var(--espresso)}
+.cellin{width:100%;padding:5px 6px;border:1px solid var(--line);border-radius:6px;background:#FFFCF4;font-size:12px}
+.cellin.narrow{width:56px;text-align:center}
+.cellin.mono{font-variant-numeric:tabular-nums}
+td.admincell{background:#FCF8EA}
+.rowbtn{border:none;background:none;color:var(--warn);font-weight:700;font-size:12px;padding:2px 6px;border-radius:6px}
+.rowbtn:hover{background:#FBEDEA}
+.empty-state{padding:44px 20px;text-align:center;color:var(--muted)}
+.empty-state b{display:block;color:var(--ink);font-size:15px;margin-bottom:6px}
+.count{font-size:12px;color:var(--muted);font-weight:600}
+.desc-cell{max-width:220px}
+.src-applicant{font-size:10px;color:#9EC2B1;background:#0E3125;padding:1px 6px;border-radius:5px;font-weight:700}
+
+.quickadd{border:1px dashed var(--admin-line);border-radius:12px;margin-top:14px}
+.quickadd summary{cursor:pointer;padding:10px 14px;font-size:12.5px;font-weight:700;color:var(--admin-ink);list-style:none}
+.quickadd summary::-webkit-details-marker{display:none}
+.quickadd summary::before{content:"▸ ";color:var(--admin-ink)}
+.quickadd[open] summary::before{content:"▾ "}
+.quickadd .qa-body{padding:0 14px 14px}
+.qa-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.qa-grid .f{display:flex;flex-direction:column;gap:4px}
+.qa-grid .f.full{grid-column:1/-1}
+.qa-grid label{font-size:11.5px;font-weight:700;color:var(--admin-ink)}
+.qa-grid input,.qa-grid select,.qa-grid textarea{padding:7px 9px;border:1px solid var(--line);border-radius:7px;background:#FFFCF4;font-size:13px}
+
+@media (max-width:1180px){ .admin-main{grid-template-columns:1fr} }
+@media (max-width:640px){ .form-grid{grid-template-columns:1fr} .qa-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- APPLICANT VIEW (default) — only fields applicants fill        -->
+<!-- ============================================================ -->
+<div id="viewApply">
+  <header>
+    <div class="brand">
+      <h1>BN 進稿申請</h1>
+      <span class="sub">APP 首頁 Banner ｜ 申請單位填寫</span>
+    </div>
+  </header>
+  <div class="notice">
+    <span class="dot">●</span>
+    填寫完成後請按「加入我的清單」，可一次送出多則申請；最後按「匯出並送出」，把檔案交給 APP 管理單位。
+    <span class="dot">●</span>
+    版位、類型、上稿順序由 APP 管理單位審核後統一安排，申請單位不需填寫。
+  </div>
+
+  <div class="apply-wrap">
+    <section class="card">
+      <div class="card-h"><h2>新增APP BN進稿申請</h2><span class="eyebrow">必填 <span style="color:var(--warn)">*</span></span></div>
+      <div class="card-b">
+        <div class="form-grid">
+          <div class="field app"><label><span class="fno">1</span>申請單位／人<span class="req">*</span></label>
+            <input id="f_unit" placeholder="商品行銷部/飲料team/王小明"></div>
+
+          <div class="field app"><label><span class="fno">2</span>活動期間<span class="req">*</span></label>
+            <input id="f_actperiod" placeholder="例：8/12(三)-8/25(一)"></div>
+
+          <div class="field app full"><label><span class="fno">3</span>活動名稱<span class="req">*</span></label>
+            <input id="f_desc" placeholder="活動／商品全名，例：星禮程 雙杯拾星 Bonus Star"></div>
+
+          <div class="field app full"><label><span class="fno">4</span>活動內容</label>
+            <textarea id="f_content" placeholder="活動說明、優惠機制、注意事項…"></textarea></div>
+
+          <div class="field app full"><label><span class="fno">5</span>連結 URL</label>
+            <input id="f_url" placeholder="https://www.starbucks.com.tw/..."></div>
+
+          <div class="field app full"><label><span class="fno">6</span>申請 BN 圖片是否已提供管理單位？請填寫檔名 <span class="help" style="margin:0">尺寸1125 × 625、≤ 2MB、純圖片、避開左上系統標／左下系統按鈕</span></label>
+            <div class="imgq">
+              <label class="chk"><input type="checkbox" id="f_imgProvided" style="width:auto"> 已提供</label>
+              <input type="text" id="f_img" placeholder="檔名，例：BN 0813-1125x625.jpg">
+            </div></div>
+
+          <div class="field app"><label><span class="fno">7</span>BN 上架日<span class="req">*</span></label>
+            <div class="two"><input type="date" id="f_sd"><select id="f_st"></select></div></div>
+          <div class="field app"><label><span class="fno">8</span>BN 下架日<span class="req">*</span></label>
+            <div class="two"><input type="date" id="f_ed"><select id="f_et"></select></div></div>
+
+          <div class="field app full"><label><span class="fno">9</span>備註</label>
+            <input id="f_note" placeholder="選填"></div>
+        </div>
+        <div class="err" id="formErr"></div>
+        <div class="form-foot">
+          <button class="btn primary" id="addBtn">加入我的清單</button>
+          <button class="btn" id="resetBtn" type="button">清空表單</button>
+          <span class="form-msg" id="formMsg"></span>
+        </div>
+      </div>
+    </section>
+
+    <div class="myq-wrap">
+      <div class="card">
+        <div class="card-h"><h2>我的申請清單 <span class="count" id="myCnt"></span></h2></div>
+        <div class="card-b" id="myqList"></div>
+        <div class="card-b" style="padding-top:0">
+          <div class="submit-band">
+            <button class="btn primary" id="cloudSubmit">提交給管理單位</button>
+            <button class="btn" id="expApply">另存本機 Excel（離線備用）</button>
+            <button class="btn warn" id="clrApply" type="button">清空重寫</button>
+          </div>
+          <div class="submit-hint" id="submitHint">會直接寫入管理員雲端試算表，管理單位可即時看到，無需再傳檔案。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <span>資料僅存在本頁，離開前請先提交或匯出。</span>
+    <span class="footlink"><a href="#admin" id="toAdminLink">APP 管理單位入口 →</a></span>
+  </footer>
+</div>
+
+<!-- ============================================================ -->
+<!-- ADMIN GATE                                                    -->
+<!-- ============================================================ -->
+<div id="gate" class="hidden">
+  <div class="gate-box">
+    <div class="gate-eyebrow">管理單位專用</div>
+    <h2>BN 排程管理後台</h2>
+    <p>請輸入通行碼進入。</p>
+    <input type="password" id="gateInput" placeholder="通行碼" autocomplete="off">
+    <button class="btn primary" id="gateBtn" type="button">進入</button>
+    <div class="gate-err" id="gateErr"></div>
+    <div class="gate-hint">通行碼由 APP 管理單位內部保管。</div>
+    <a class="gate-back" href="#" id="gateBack">← 回申請頁</a>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ADMIN VIEW (behind gate) — schedule, assignment, export       -->
+<!-- ============================================================ -->
+<div id="viewAdmin" class="hidden">
+  <header>
+    <div class="brand">
+      <h1>BN 排程管理後台</h1>
+      <span class="sub">APP 首頁 Banner ｜ 審核 · 指派版位 · 排程預覽 · 匯出</span>
+    </div>
+    <div class="hdr-actions">
+      <span class="rulechip">上方：話題 ＞ 活動</span>
+      <span class="rulechip">下方：新品 ＞ 類別</span>
+      <span class="rulechip">數字大＝排前面</span>
+      <a href="#" id="toApplyLink" class="btn ghost-d">回申請頁</a>
+    </div>
+  </header>
+  <div class="notice">
+    <span class="dot">●</span>
+    <b>APP 管理單位具申請審核權。</b>
+    單欄輪播 BN 最多 8 則；若同期數量超過，以實際安排為準。灰底欄位可直接點擊編輯。
+  </div>
+
+  <div class="admin-main">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="config">
+        <div class="row"><label style="flex:1">基準日<input type="date" id="cfgBase" value="2026-08-11"></label></div>
+        <div class="row">
+          <label style="flex:1">上方基數<input type="number" id="cfgTop" value="820"></label>
+          <label style="flex:1">下方基數<input type="number" id="cfgBot" value="660"></label>
+          <label style="flex:1">滿版基數<input type="number" id="cfgFull" value="900"></label>
+        </div>
+        <span class="hint">系統排序＝基數−（順位−1），同欄連動、數字大者在前。基準日作為活動日期新→舊的比較基準。</span>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2>取得申請資料</h2></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn primary" id="cloudSync" type="button">從雲端同步</button>
+          <span class="hint" style="color:var(--muted);font-size:11.5px" id="syncInfo">尚未設定雲端連結。</span>
+          <label class="btn" style="text-align:center">匯入本機檔案（備用）<input type="file" id="impF" accept=".xlsx,.xls,.csv" class="hidden" multiple></label>
+          <span class="hint" style="color:var(--muted);font-size:11.5px">離線或雲端尚未設定時，可改用申請單位傳來的檔案匯入合併。</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h"><h2>當期輪播預覽</h2></div>
+        <div class="card-b">
+          <div class="dateline">
+            <span class="lbl">日期</span>
+            <input type="date" id="pvDate" value="2026-08-11">
+            <button class="btn small" id="pvToday" type="button">今天</button>
+          </div>
+          <span class="live" id="pvInfo"></span>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="railwrap" id="rails"></div>
+      <div class="legend">
+        <span><i style="background:var(--t-social)"></i>話題</span>
+        <span><i style="background:var(--t-member)"></i>活動</span>
+        <span><i style="background:var(--t-new)"></i>新品</span>
+        <span><i style="background:var(--t-cat)"></i>類別</span>
+        <span style="margin-left:auto">單欄最多 8 則，超過以實際安排為準</span>
+      </div>
+
+      <section class="card">
+        <div class="card-h">
+          <h2>進稿總表 <span class="count" id="cnt"></span></h2>
+          <div class="toolbar">
+            <button class="btn primary" id="expX">匯出總表 Excel</button>
+            <button class="btn" id="expC">匯出 CSV</button>
+            <button class="btn warn" id="clrBtn">清空總表</button>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="tbl">
+            <thead><tr>
+              <th class="center">版位<br>管理者</th><th class="center">類型<br>管理者</th>
+              <th class="center">順位</th><th class="center">系統<br>排序</th><th class="center">微調<br>管理者</th>
+              <th>項目說明</th><th>活動期間</th><th>上架–下架</th>
+              <th class="center">狀態<br>管理者</th><th>APP標題<br>管理者</th><th>按鈕文字<br>管理者</th>
+              <th>申請單位</th><th></th>
+            </tr></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+          <div class="empty-state hidden" id="emptyState">
+            <b>目前沒有任何申請</b>
+            用左側「匯入申請」載入申請單位送來的檔案，或在下方手動新增一則。
+          </div>
+        </div>
+        <details class="quickadd">
+          <summary>＋ 手動新增一則（管理者專用，含全部欄位）</summary>
+          <div class="qa-body">
+            <div class="qa-grid">
+              <div class="f"><label>申請單位／人</label><input id="qa_unit" value="APP 管理單位"></div>
+              <div class="f"><label>對應版位</label>
+                <select id="qa_slot"><option value="">請選擇</option>
+                  <option value="top">首頁上方輪播（話題／活動類）</option>
+                  <option value="bottom">首頁下方輪播（檔期新品類）</option>
+                  <option value="full">首頁滿版彈窗（重大事件／系統公告）</option>
+                </select></div>
+              <div class="f"><label>活動期間</label><input id="qa_actperiod" placeholder="例：8/12(三)-8/25(一)"></div>
+              <div class="f"><label>類型</label><select id="qa_type"><option value="">先選版位</option></select></div>
+              <div class="f full"><label>項目說明</label><input id="qa_desc"></div>
+              <div class="f"><label>微調</label><input type="number" id="qa_micro" placeholder="0"></div>
+              <div class="f"><label>APP 顯示標題</label><input id="qa_title"></div>
+              <div class="f"><label>分類名稱</label><input id="qa_cat" value="最新資訊"></div>
+              <div class="f"><label>按鈕文字</label><input id="qa_btn" placeholder="例：立即查看"></div>
+              <div class="f full"><label>URL</label><input id="qa_url"></div>
+              <div class="f"><label>BN 上架日</label><div class="two"><input type="date" id="qa_sd"><select id="qa_st"></select></div></div>
+              <div class="f"><label>BN 下架日</label><div class="two"><input type="date" id="qa_ed"><select id="qa_et"></select></div></div>
+              <div class="f"><label>狀態</label><select id="qa_status"><option>啟用</option><option>停用</option></select></div>
+              <div class="f"><label>備註</label><input id="qa_note"></div>
+            </div>
+            <div class="form-foot"><button class="btn primary small" id="qaAdd" type="button">加入總表</button></div>
+          </div>
+        </details>
+      </section>
+    </div>
+  </div>
+
+  <footer><span>總表資料僅存在此頁面，離開前請先「匯出總表 Excel」保存。</span><span></span></footer>
+</div>
+
+<script>
+// ============================================================
+// 雲端同步設定：部署 Code.gs（Google Apps Script）後，把網頁應用程式網址貼在這裡。
+// 留空＝離線模式（沿用「加入清單→匯出檔案」「匯入合併」的手動流程，仍可正常使用）。
+// ============================================================
+const CONFIG = { WEBAPP_URL: "https://script.google.com/macros/s/AKfycbwpOKtgAA_d3s1yqLixVOIeJ-Hh4cnnWR3Ix2vzS4S_YyGMvj9lwAsoa56K1e6BE80/exec" };
+
+async function cloudPost(payload){
+  if(!CONFIG.WEBAPP_URL) throw new Error("尚未設定雲端連結");
+  const res=await fetch(CONFIG.WEBAPP_URL,{method:"POST",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(payload)});
+  return res.json();
+}
+async function cloudGet(action){
+  if(!CONFIG.WEBAPP_URL) throw new Error("尚未設定雲端連結");
+  const res=await fetch(CONFIG.WEBAPP_URL+"?action="+encodeURIComponent(action));
+  return res.json();
+}
+
+const SLOTS={
+  top:{name:"首頁上方輪播（話題／活動類）",cap:8,base:820,label:"首頁上方輪播 · 話題／活動類",types:{"社群話題":1,"會員活動":2}},
+  bottom:{name:"首頁下方輪播（檔期新品類）",cap:8,base:660,label:"首頁下方輪播 · 檔期新品類",types:{"新品上架":1,"類別活動":2}},
+  full:{name:"首頁滿版彈窗（重大事件／系統公告）",cap:1,base:900,label:"首頁滿版彈窗 · 重大事件",types:{"重大事件／系統公告":1}}};
+const TYPE_CLASS={"社群話題":"social","會員活動":"member","新品上架":"newp","類別活動":"cat","重大事件／系統公告":"cat"};
+const $=id=>document.getElementById(id);
+function escapeHtml(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function fmtDate(d){return d?d.replace(/-/g,"/").slice(5):"—"}
+function stamp(){const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0")}
+function timeOptions(){const o=[];for(let h=0;h<24;h++)for(const m of[0,30])o.push(String(h).padStart(2,"0")+":"+String(m).padStart(2,"0"));return o}
+function fillTimeSelect(el,def){el.innerHTML=timeOptions().map(t=>`<option ${t===def?"selected":""}>${t}</option>`).join("");}
+function toISO(v){if(!v)return"";if(typeof v==="number"){const dt=(window.XLSX&&XLSX.SSF)?XLSX.SSF.parse_date_code(v):null;
+    if(dt)return `${dt.y}-${String(dt.m).padStart(2,"0")}-${String(dt.d).padStart(2,"0")}`;}
+  const s=String(v).replace(/\//g,"-");const m=s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  return m?`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`:"";}
+function nameToSlot(n){n=String(n||"");if(n.includes("上方"))return"top";if(n.includes("下方"))return"bottom";
+  if(n.includes("滿版"))return"full";if(["top","bottom","full"].includes(n))return n;return"";}
+
+/* ================= APPLICANT VIEW ================= */
+let myQ=[]; let mySeq=1;
+function readApplyForm(){
+  return {unit:$("f_unit").value.trim(),actperiod:$("f_actperiod").value.trim(),content:$("f_content").value.trim(),
+    desc:$("f_desc").value.trim(),url:$("f_url").value.trim(),imgProvided:$("f_imgProvided").checked,img:$("f_img").value.trim(),
+    sd:$("f_sd").value,st:$("f_st").value,ed:$("f_ed").value,et:$("f_et").value,note:$("f_note").value.trim()};
+}
+function validateApply(f){
+  const need=[["unit","1 申請單位／人"],["actperiod","2 活動期間"],["desc","3 項目說明"],["sd","7 BN上架日"],["ed","8 BN下架日"]];
+  const miss=need.filter(([k])=>!f[k]).map(([,n])=>n);
+  if(miss.length)return "請補上："+miss.join("、");
+  if(f.ed<f.sd)return "BN 下架日不能早於上架日";
+  return "";
+}
+function clearApplyForm(){
+  ["f_unit","f_actperiod","f_content","f_desc","f_url","f_img","f_note"].forEach(id=>$(id).value="");
+  $("f_imgProvided").checked=false; $("f_sd").value=""; $("f_ed").value="";
+  fillTimeSelect($("f_st"),"00:00"); fillTimeSelect($("f_et"),"23:30");
+  $("formErr").textContent="";
+}
+function renderMyQ(){
+  const box=$("myqList");
+  if(!myQ.length){box.innerHTML='<div class="myq-empty">還沒有加入任何申請。</div>'; $("myCnt").textContent=""; return;}
+  box.innerHTML="";
+  myQ.forEach(e=>{
+    const d=document.createElement("div"); d.className="myq-item";
+    d.innerHTML=`<div><div class="m1">${escapeHtml(e.desc)}</div>
+      <div class="m2">${escapeHtml(e.actperiod)} · BN ${fmtDate(e.sd)}–${fmtDate(e.ed)}${e.note?(" · "+escapeHtml(e.note)):""}</div></div>
+      <button class="rowbtn" data-mydel="${e._i}">刪除</button>`;
+    box.appendChild(d);
+  });
+  box.querySelectorAll("[data-mydel]").forEach(b=>b.addEventListener("click",ev=>{
+    myQ=myQ.filter(x=>x._i!==+ev.target.dataset.mydel); renderMyQ();
+  }));
+  $("myCnt").textContent=`（${myQ.length} 則）`;
+}
+$("addBtn")&&$("addBtn").addEventListener("click",()=>{
+  const f=readApplyForm(), err=validateApply(f);
+  $("formErr").textContent=err; if(err)return;
+  f._i=mySeq; f.id="BN-"+(f.sd?f.sd.replace(/-/g,"").slice(4):"XX")+"-"+String(mySeq).padStart(2,"0"); mySeq++;
+  myQ.push(f); renderMyQ();
+  $("formMsg").textContent="已加入：「"+f.desc+"」"; setTimeout(()=>$("formMsg").textContent="",2500);
+  clearApplyForm();
+});
+$("resetBtn")&&$("resetBtn").addEventListener("click",clearApplyForm);
+
+const APPLICANT_COLS=[["進稿編號","id"],["申請單位／人","unit"],["活動期間","actperiod"],["活動內容","content"],
+  ["項目說明","desc"],["URL","url"],["圖片已提供","imgProvidedTxt"],["主圖檔名","img"],
+  ["BN上架日","sd"],["BN上架時","st"],["BN下架日","ed"],["BN下架時","et"],["備註","note"]];
+$("expApply")&&$("expApply").addEventListener("click",()=>{
+  if(!myQ.length)return alert("清單是空的，先新增申請。");
+  if(typeof XLSX==="undefined")return alert("Excel 元件未載入（可能離線），請檢查網路後再試。");
+  const rows=myQ.map(e=>{const o={};APPLICANT_COLS.forEach(([h,k])=>{o[h]=k==="imgProvidedTxt"?(e.imgProvided?"是":"否"):(e[k]??"");});return o;});
+  const ws=XLSX.utils.json_to_sheet(rows,{header:APPLICANT_COLS.map(c=>c[0])});
+  ws["!cols"]=APPLICANT_COLS.map(c=>({wch:Math.max(8,c[0].length*2)}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"BN申請");
+  const unitTag=(myQ[0].unit||"申請").replace(/[\\/:*?"<>|]/g,"");
+  XLSX.writeFile(wb,`BN申請_${unitTag}_${stamp()}.xlsx`);
+});
+$("clrApply")&&$("clrApply").addEventListener("click",()=>{
+  if(myQ.length&&confirm("確定清空我的申請清單？建議先匯出。")){myQ=[];renderMyQ();}
+});
+
+function updateSubmitHint(){
+  const h=$("submitHint"); if(!h)return;
+  h.textContent=CONFIG.WEBAPP_URL
+    ? "會直接寫入公司雲端試算表，管理單位可即時看到，無需再傳檔案。"
+    : "尚未設定雲端連結，目前為本機模式：請按「另存本機 Excel」，用信件／訊息交給管理單位。";
+}
+$("cloudSubmit")&&$("cloudSubmit").addEventListener("click",async()=>{
+  if(!myQ.length)return alert("清單是空的，先新增申請。");
+  if(!CONFIG.WEBAPP_URL){ alert("尚未設定雲端連結，請改用「另存本機 Excel」，或請管理單位完成雲端設定後再試。"); return; }
+  const btn=$("cloudSubmit"); const old=btn.textContent; btn.textContent="送出中…"; btn.disabled=true;
+  try{
+    const rows=myQ.map(e=>{const o={};APPLICANT_COLS.forEach(([h,k])=>{o[h]=k==="imgProvidedTxt"?(e.imgProvided?"是":"否"):(e[k]??"");});return o;});
+    await cloudPost({action:"submit",rows});
+    $("formMsg").textContent=`已送出 ${myQ.length} 則到雲端，管理單位可即時看到。`;
+    setTimeout(()=>$("formMsg").textContent="",4000);
+    myQ=[]; renderMyQ();
+  }catch(err){ alert("送出失敗，請確認網路連線，或改用「另存本機 Excel」備用。"); }
+  finally{ btn.textContent=old; btn.disabled=false; }
+});
+
+/* ================= ADMIN VIEW ================= */
+let entries=[]; let seq=1; let adminUnlocked=false; let seeded=false;
+function cfg(){return{base:$("cfgBase").value,top:+$("cfgTop").value||820,bot:+$("cfgBot").value||660,full:+$("cfgFull").value||900}}
+function baseOf(slot){const c=cfg();return slot==="top"?c.top:slot==="bottom"?c.bot:c.full}
+function tierOf(e){const s=SLOTS[e.slot];return s&&s.types[e.type]?s.types[e.type]:9}
+function days(a,b){if(!a||!b)return 0;return Math.round((new Date(a)-new Date(b))/86400000)}
+function scoreOf(e){return -tierOf(e)*100000 + days(e.sd,cfg().base) + (Number(e.micro)||0)}
+function placed(e){return e.slot&&e.type&&SLOTS[e.slot]&&SLOTS[e.slot].types[e.type]}
+function compute(){
+  const bySlot={top:[],bottom:[],full:[]};
+  entries.forEach(e=>{e.rank="";e.sysno=""; if(placed(e))bySlot[e.slot].push(e)});
+  Object.keys(bySlot).forEach(sl=>{
+    bySlot[sl].sort((a,b)=> scoreOf(b)-scoreOf(a) || a._i-b._i);
+    bySlot[sl].forEach((e,idx)=>{e.rank=idx+1; e.sysno=baseOf(sl)-idx;});
+  });
+}
+function typeOptionsHtml(slot,selected){
+  if(!slot)return '<option value="">先選版位</option>';
+  return Object.keys(SLOTS[slot].types).map(t=>`<option value="${t}" ${t===selected?"selected":""}>${t}</option>`).join("");
+}
+function renderAdmin(){
+  compute();
+  const tb=$("tbody"); tb.innerHTML="";
+  const ord=e=>placed(e)?["top","bottom","full"].indexOf(e.slot):99;
+  const sorted=[...entries].sort((a,b)=> (ord(a)-ord(b)) || ((a.rank||99)-(b.rank||99)) || a._i-b._i);
+  sorted.forEach(e=>{
+    const cls=TYPE_CLASS[e.type]||"cat";
+    const slotName=placed(e)?{top:"上方",bottom:"下方",full:"滿版"}[e.slot]:"待分派";
+    const tagcls=placed(e)?(e.slot==='full'?'full':cls):'none';
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td class="admincell"><select class="cellin" data-f="slot" data-id="${e._i}">
+          <option value="">未指派</option>
+          <option value="top" ${e.slot==='top'?'selected':''}>上方輪播</option>
+          <option value="bottom" ${e.slot==='bottom'?'selected':''}>下方輪播</option>
+          <option value="full" ${e.slot==='full'?'selected':''}>滿版彈窗</option>
+        </select></td>
+      <td class="admincell"><select class="cellin" data-f="type" data-id="${e._i}">${typeOptionsHtml(e.slot,e.type)}</select></td>
+      <td class="center num">${e.rank||""}</td>
+      <td class="center"><span class="sysbig">${e.sysno||""}</span></td>
+      <td class="admincell"><input class="cellin narrow mono" data-f="micro" data-id="${e._i}" value="${e.micro||''}" placeholder="0"></td>
+      <td class="desc-cell">${escapeHtml(e.desc)}${e.source==='applicant'?' <span class="src-applicant">申請</span>':''}</td>
+      <td>${escapeHtml(e.actperiod||"")}</td>
+      <td class="num">${fmtDate(e.sd)}–${fmtDate(e.ed)}</td>
+      <td class="admincell center"><select class="cellin" data-f="status" data-id="${e._i}">
+          <option ${e.status==='啟用'?'selected':''}>啟用</option><option ${e.status==='停用'?'selected':''}>停用</option>
+        </select></td>
+      <td class="admincell"><input class="cellin" data-f="title" data-id="${e._i}" value="${escapeHtml(e.title||'')}"></td>
+      <td class="admincell"><input class="cellin" data-f="btn" data-id="${e._i}" value="${escapeHtml(e.btn||'')}"></td>
+      <td>${escapeHtml(e.unit||"")}</td>
+      <td class="center"><button class="rowbtn" data-del="${e._i}">刪除</button></td>`;
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll("[data-f]").forEach(el=>el.addEventListener("change",ev=>{
+    const id=+ev.target.dataset.id, f=ev.target.dataset.f, e=entries.find(x=>x._i===id);
+    if(!e)return;
+    e[f]=ev.target.value;
+    if(f==="slot")e.type="";
+    renderAdmin();
+    pushAssignment(e);
+  }));
+  tb.querySelectorAll("[data-del]").forEach(b=>b.addEventListener("click",ev=>{
+    entries=entries.filter(x=>x._i!==+ev.target.dataset.del); renderAdmin();
+  }));
+  $("cnt").textContent=entries.length?`（${entries.length} 則）`:"";
+  $("emptyState").classList.toggle("hidden",entries.length>0);
+  $("tbl").classList.toggle("hidden",entries.length===0);
+  renderRails();
+}
+function activeOn(dateStr,slot){
+  const day=new Date(dateStr);
+  return entries.filter(e=>placed(e)&&e.slot===slot&&e.sd&&e.ed&&new Date(e.sd)<=day&&new Date(e.ed)>=day&&e.status!=="停用")
+    .sort((a,b)=>scoreOf(b)-scoreOf(a)||a._i-b._i);
+}
+function railHtml(slotKey){
+  const s=SLOTS[slotKey], date=$("pvDate").value, list=activeOn(date,slotKey), cap=s.cap;
+  let cells="";
+  for(let i=0;i<cap;i++){
+    const e=list[i];
+    if(e){
+      const cls=TYPE_CLASS[e.type]||"cat";
+      cells+=`<div class="slot filled"><div class="bn">BN${i+1}</div>
+        <div class="chip ${cls}"><span class="nm">${escapeHtml(e.desc)}</span>
+        <span class="mt">${fmtDate(e.sd)}–${fmtDate(e.ed)} · <span class="sysno">#${e.sysno}</span></span></div></div>`;
+    }else cells+=`<div class="slot empty"><div class="bn">BN${i+1}</div><div class="dash">—</div></div>`;
+  }
+  const over=list.length>cap?`　⚠ 超過 ${cap} 則`:"";
+  return `<div class="rail"><div class="rail-h"><span>${s.label}</span>
+    <span class="cap">在檔 ${list.length} / 版位 ${cap}${over}</span></div>
+    <div class="slots ${cap===1?'one':''}">${cells}</div></div>`;
+}
+function renderRails(){
+  $("rails").innerHTML=railHtml("top")+railHtml("bottom")+railHtml("full");
+  const d=$("pvDate").value, tot=["top","bottom","full"].reduce((n,s)=>n+activeOn(d,s).length,0);
+  $("pvInfo").textContent=d?`${d.replace(/-/g,"/")} 共 ${tot} 則在檔`:"";
+}
+$("pvDate")&&$("pvDate").addEventListener("change",renderRails);
+$("pvToday")&&$("pvToday").addEventListener("click",()=>{$("pvDate").value=new Date().toISOString().slice(0,10);renderRails();});
+["cfgBase","cfgTop","cfgBot","cfgFull"].forEach(id=>$(id)&&$(id).addEventListener("change",renderAdmin));
+
+const MASTER_COLS=[["進稿編號","id"],["申請單位／人","unit"],["對應版位","slotName"],["活動期間","actperiod"],["活動內容","content"],
+  ["類型","type"],["權階","tier"],["建議順位","rank"],["系統排序","sysno"],["微調","micro"],
+  ["項目說明","desc"],["APP顯示標題","title"],["分類名稱","catName"],["按鈕文字","btn"],["URL","url"],
+  ["圖片已提供","imgProvidedTxt"],["主圖檔名","img"],
+  ["BN上架日","sd"],["BN上架時","st"],["BN下架日","ed"],["BN下架時","et"],["狀態","status"],["備註","note"]];
+function exportMasterRows(){
+  compute();
+  const ord=e=>placed(e)?["top","bottom","full"].indexOf(e.slot):99;
+  const order=[...entries].sort((a,b)=>(ord(a)-ord(b))||((a.rank||99)-(b.rank||99))||a._i-b._i);
+  return order.map(e=>{
+    const o={}, slotName=SLOTS[e.slot]?SLOTS[e.slot].name:(e.slot||"待分派");
+    MASTER_COLS.forEach(([h,k])=>{
+      o[h]= k==="slotName"?slotName : k==="tier"?(placed(e)?tierOf(e):"") :
+            k==="imgProvidedTxt"?(e.imgProvided?"是":"否") : (e[k]??"");});
+    return o;
+  });
+}
+$("expX")&&$("expX").addEventListener("click",()=>{
+  if(!entries.length)return alert("總表是空的，先匯入或新增資料。");
+  if(typeof XLSX==="undefined")return alert("Excel 元件未載入（可能離線）。請改用「匯出 CSV」。");
+  const ws=XLSX.utils.json_to_sheet(exportMasterRows(),{header:MASTER_COLS.map(c=>c[0])});
+  ws["!cols"]=MASTER_COLS.map(c=>({wch:Math.max(8,c[0].length*2)}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,"BN排程總表");
+  XLSX.writeFile(wb,`BN排程總表_${stamp()}.xlsx`);
+});
+$("expC")&&$("expC").addEventListener("click",()=>{
+  if(!entries.length)return alert("總表是空的，先匯入或新增資料。");
+  const rows=exportMasterRows(), heads=MASTER_COLS.map(c=>c[0]);
+  const esc=v=>{v=String(v??"");return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const csv=[heads.join(",")].concat(rows.map(r=>heads.map(h=>esc(r[h])).join(","))).join("\r\n");
+  const blob=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});
+  const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`BN排程總表_${stamp()}.csv`;a.click();
+});
+$("impF")&&$("impF").addEventListener("change",ev=>{
+  const files=[...ev.target.files]; if(!files.length)return;
+  if(typeof XLSX==="undefined"){alert("匯入元件未載入（可能離線）。");return;}
+  let filesLeft=files.length, addedTotal=0;
+  files.forEach(file=>{
+    const rd=new FileReader();
+    rd.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:"array"});
+        const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:""});
+        rows.forEach(r=>{
+          if(!r["項目說明"])return;
+          entries.push({_i:seq, id:r["進稿編號"]||("BN-imp-"+seq), unit:r["申請單位／人"]||"",
+            slot:nameToSlot(r["對應版位"]), actperiod:r["活動期間"]||"", content:r["活動內容"]||r["內容"]||"",
+            type:r["類型"]||"", micro:r["微調"]||"", desc:r["項目說明"]||"", title:r["APP顯示標題"]||"",
+            catName:r["分類名稱"]||"最新資訊", btn:r["按鈕文字"]||"", url:r["URL"]||"",
+            imgProvided:String(r["圖片已提供"]||"").includes("是"), img:r["主圖檔名"]||r["主圖"]||"",
+            sd:toISO(r["BN上架日"]||r["起日"]), st:r["BN上架時"]||r["起時"]||"00:00",
+            ed:toISO(r["BN下架日"]||r["訖日"]), et:r["BN下架時"]||r["訖時"]||"23:30",
+            status:r["狀態"]||"啟用", note:r["備註"]||"", source:"applicant"});
+          seq++; addedTotal++;
+        });
+      }catch(err){ alert("讀取「"+file.name+"」失敗，請確認檔案格式。"); }
+      filesLeft--;
+      if(filesLeft===0){ renderAdmin(); alert(`已匯入合併 ${addedTotal} 則。`); }
+    };
+    rd.readAsArrayBuffer(file);
+  });
+  ev.target.value="";
+});
+$("clrBtn")&&$("clrBtn").addEventListener("click",()=>{
+  if(entries.length&&confirm("確定清空整張總表？此動作無法復原（建議先匯出）。")){entries=[];renderAdmin();}
+});
+
+/* quick-add (admin manual entry) */
+$("qa_slot")&&$("qa_slot").addEventListener("change",()=>{
+  const sl=$("qa_slot").value, sel=$("qa_type"); sel.innerHTML="";
+  if(!sl){sel.innerHTML='<option value="">先選版位</option>';return;}
+  Object.keys(SLOTS[sl].types).forEach(t=>{const o=document.createElement("option");o.value=t;o.textContent=t;sel.appendChild(o);});
+});
+$("qaAdd")&&$("qaAdd").addEventListener("click",()=>{
+  const f={unit:$("qa_unit").value.trim()||"APP 管理單位", slot:$("qa_slot").value, actperiod:$("qa_actperiod").value.trim(),
+    type:$("qa_type").value, desc:$("qa_desc").value.trim(), micro:$("qa_micro").value.trim(),
+    title:$("qa_title").value.trim(), catName:$("qa_cat").value.trim()||"最新資訊", btn:$("qa_btn").value.trim(),
+    url:$("qa_url").value.trim(), imgProvided:false, img:"",
+    sd:$("qa_sd").value, st:$("qa_st").value, ed:$("qa_ed").value, et:$("qa_et").value,
+    status:$("qa_status").value, note:$("qa_note").value.trim(), content:"", source:"admin"};
+  if(!f.desc||!f.sd||!f.ed){ alert("至少需要填「項目說明」與「上／下架日」。"); return; }
+  f._i=seq; f.id="BN-adm-"+String(seq).padStart(2,"0"); seq++;
+  entries.push(f); renderAdmin();
+  if(CONFIG.WEBAPP_URL){
+    f.cloudId=f.id;
+    const o={}; APPLICANT_COLS.forEach(([h,k])=>{o[h]=k==="imgProvidedTxt"?(f.imgProvided?"是":"否"):(f[k]??"");});
+    cloudPost({action:"submit",rows:[o]}).then(()=>pushAssignment(f)).catch(()=>{});
+  }
+  ["qa_actperiod","qa_desc","qa_micro","qa_title","qa_btn","qa_url","qa_note"].forEach(id=>$(id).value="");
+  $("qa_unit").value="APP 管理單位"; $("qa_cat").value="最新資訊"; $("qa_status").value="啟用";
+  $("qa_slot").value=""; $("qa_type").innerHTML='<option value="">先選版位</option>';
+  $("qa_sd").value=""; $("qa_ed").value=""; fillTimeSelect($("qa_st"),"00:00"); fillTimeSelect($("qa_et"),"23:30");
+});
+
+function pushAssignment(e){
+  if(!CONFIG.WEBAPP_URL || !e.cloudId) return; // 本機示範資料或雲端未設定時不回寫
+  cloudPost({action:"assign",row:{id:e.cloudId,slot:e.slot||"",type:e.type||"",micro:e.micro||"",
+    title:e.title||"",catName:e.catName||"",btn:e.btn||"",status:e.status||"啟用"}}).catch(()=>{});
+}
+async function syncFromCloud(){
+  if(!CONFIG.WEBAPP_URL){ $("syncInfo").textContent="尚未設定雲端連結，請完成 Code.gs 部署後在 CONFIG.WEBAPP_URL 貼上網址。"; return; }
+  const btn=$("cloudSync"); const old=btn.textContent; btn.textContent="同步中…"; btn.disabled=true;
+  try{
+    const data=await cloudGet("list");
+    const asgMap={}; (data.assignments||[]).forEach(a=>{ asgMap[a.id]=a; });
+    entries=entries.filter(e=>e.source==="admin"&&!e.cloudId); // 保留尚未送出的本機手動新增，移除舊的雲端資料重新載入
+    (data.submissions||[]).forEach(s=>{
+      const a=asgMap[s.id]||{};
+      entries.push({_i:seq++, id:s.id, cloudId:s.id, unit:s.unit||"", actperiod:s.actperiod||"", content:s.content||"",
+        desc:s.desc||"", url:s.url||"", imgProvided:String(s.imgProvidedTxt||"").includes("是"), img:s.img||"",
+        sd:s.sd||"", st:s.st||"00:00", ed:s.ed||"", et:s.et||"23:30", note:s.note||"",
+        slot:a.slot||"", type:a.type||"", micro:a.micro||"", title:a.title||"", catName:a.catName||"最新資訊",
+        btn:a.btn||"", status:a.status||"啟用", source:"applicant"});
+    });
+    renderAdmin();
+    $("syncInfo").textContent="上次同步："+new Date().toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"})+`（共 ${data.submissions.length} 則申請）`;
+  }catch(err){ $("syncInfo").textContent="同步失敗，請確認網路連線或雲端網址設定。"; }
+  finally{ btn.textContent=old; btn.disabled=false; }
+}
+$("cloudSync")&&$("cloudSync").addEventListener("click",syncFromCloud);
+
+function seedAdminDemo(){
+  if(seeded)return; seeded=true;
+  const T="top",B="bottom";
+  const dat=[
+   [T,"會員活動","星禮程 循環杯租借 Bonus Star","8/1(六)-8/24(一)","2026-08-01","2026-08-24",0,"會員行銷部/王小明"],
+   [T,"會員活動","金星禮線上兌換｜金星入座 兌換禮遇","7/25-8/31","2026-07-25","2026-08-31",0,"會員行銷部/王小明"],
+   [T,"會員活動","金星級 夏日限定禮遇 星璨饗宴85折","7/25-8/31","2026-07-25","2026-08-31",0,"會員行銷部/王小明"],
+   [T,"會員活動","LINE Pay｜2026 第三季合作活動","7/1(三)-9/30(三)","2026-07-01","2026-09-30",0,"行銷企劃部/王小明"],
+   [T,"會員活動","星禮程 雙杯拾星 Bonus Star","8/12(三)-8/14(五)","2026-08-12","2026-08-14",0,"會員行銷部/王小明"],
+   [T,"會員活動","星送禮 浪漫七夕 額外贈5星","8/12-8/25","2026-08-12","2026-08-25",0,"會員行銷部/王小明"],
+   [T,"會員活動","星禮程 金星級 雙倍贈星","8/17-8/18","2026-08-17","2026-08-18",0,"會員行銷部/王小明"],
+   [T,"社群話題","七夕情人節 玫瑰花滿額贈","8/19(三)","2026-08-19","2026-08-19",0,"行銷企劃部/王小明"],
+   [T,"會員活動","星送禮 七夕與你相遇","8/19(三)","2026-08-19","2026-08-19",0,"會員行銷部/王小明"],
+   [B,"新品上架","秋節禮盒","8/3-9/28","2026-07-31","2026-09-28",50,"商品行銷部/飲料team/王小明"],
+   [B,"新品上架","MAF 商品 8/12 上市","8/11-9/25","2026-08-11","2026-09-25",0,"商品行銷部/飲料team/王小明"],
+   [B,"新品上架","Molly 飲料 8/11 上市","8/5-8/18","2026-08-05","2026-08-18",0,"商品行銷部/飲料team/王小明"],
+   [B,"新品上架","Molly 商品","8/5-8/18","2026-08-05","2026-08-18",0,"商品行銷部/王小明"],
+   [B,"新品上架","Sum3 Ph1 飲料","7/21-8/11","2026-07-21","2026-08-11",0,"商品行銷部/飲料team/王小明"],
+   [B,"新品上架","Sum3 Ph1 早餐","7/21-9/8","2026-07-21","2026-09-08",0,"商品行銷部/王小明"],
+   [B,"新品上架","Sum3 Ph1 午茶","7/21-9/8","2026-07-21","2026-09-08",0,"商品行銷部/王小明"],
+   [B,"新品上架","Sum3 Ph1 咖啡豆","7/21-9/8","2026-07-21","2026-09-08",0,"商品行銷部/王小明"],
+   [B,"新品上架","Sum3 Ph2 飲料","8/19-9/8","2026-08-19","2026-09-08",0,"商品行銷部/飲料team/王小明"],
+  ];
+  dat.forEach(([slot,type,desc,actperiod,sd,ed,micro,unit])=>{
+    entries.push({_i:seq,id:"BN-"+sd.replace(/-/g,"").slice(4)+"-"+String(seq).padStart(2,"0"),
+      unit,slot,actperiod,content:"",type,micro:micro||"",desc,title:desc.slice(0,12),catName:"最新資訊",btn:"立即查看",url:"",
+      imgProvided:true,img:"IMG_"+seq+"_1125x625.jpg",sd,st:"00:00",ed,et:"23:30",status:"啟用",note:"",source:"admin"});
+    seq++;
+  });
+}
+
+/* ================= ROUTING ================= */
+const ACCESS_CODE = "APP2026"; // 通行碼：僅供內部同仁使用，非真正資安機制，任何人檢視原始碼都看得到。
+function showApply(){ $("viewApply").classList.remove("hidden"); $("viewAdmin").classList.add("hidden"); $("gate").classList.add("hidden"); }
+function showGate(){ $("viewApply").classList.add("hidden"); $("viewAdmin").classList.add("hidden"); $("gate").classList.remove("hidden");
+  const gi=$("gateInput"); gi.value=""; $("gateErr").textContent=""; setTimeout(()=>gi.focus(),50); }
+function showAdmin(){ $("viewApply").classList.add("hidden"); $("gate").classList.add("hidden"); $("viewAdmin").classList.remove("hidden");
+  if(CONFIG.WEBAPP_URL){ syncFromCloud(); } else { seedAdminDemo(); $("syncInfo").textContent="尚未設定雲端連結，目前顯示的是示範資料。"; }
+  renderAdmin(); }
+function route(){
+  if(location.hash==="#admin"){ adminUnlocked?showAdmin():showGate(); } else { showApply(); }
+}
+$("gateBtn")&&$("gateBtn").addEventListener("click",()=>{
+  if($("gateInput").value===ACCESS_CODE){ adminUnlocked=true; showAdmin(); }
+  else{ $("gateErr").textContent="通行碼不正確，請再試一次。"; $("gateInput").value=""; $("gateInput").focus(); }
+});
+$("gateInput")&&$("gateInput").addEventListener("keydown",e=>{ if(e.key==="Enter")$("gateBtn").click(); });
+$("gateBack")&&$("gateBack").addEventListener("click",e=>{ e.preventDefault(); location.hash=""; });
+window.addEventListener("hashchange",route);
+
+fillTimeSelect($("f_st"),"00:00"); fillTimeSelect($("f_et"),"23:30");
+fillTimeSelect($("qa_st"),"00:00"); fillTimeSelect($("qa_et"),"23:30");
+renderMyQ();
+updateSubmitHint();
+route();
+</script>
+</body>
+</html>
